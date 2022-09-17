@@ -86,8 +86,9 @@ function validateKeySync(keyDifference: Array<string>, fileName: string, languag
 * }
 */
 function transformResponse(response: Record<string, any>): void {
+	const fileRegex = '.*/locales/.*.yml';
 
-	const filesFromResponse = response.data.filter(elem => new RegExp('.*/locales/.*.json').test(elem.filename));
+	const filesFromResponse = response.data.filter(elem => new RegExp(fileRegex).test(elem.filename));
 
 	filesFromResponse.forEach(element => {
 		const path = element.filename.split('/');
