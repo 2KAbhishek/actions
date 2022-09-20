@@ -2,6 +2,7 @@ import {Octokit} from '@octokit/core';
 import _ from 'lodash';
 
 const github = require('@actions/github');
+const yaml = require('js-yaml');
 
 export async function getFiles(octokit: Octokit, pullNumber: number): Promise<any> {
 	return await octokit.request(
@@ -16,7 +17,7 @@ export async function getFiles(octokit: Octokit, pullNumber: number): Promise<an
 
 export async function getFileContent(octokit: Octokit, branch: string, file: string, locale = 'en') {
 	const content = await octokit.request(
-		'GET /repos/{owner}/{repo}/contents/packages/cherrim/src/public/locales/{path}?ref={target_branch}', {
+		'GET /repos/{owner}/{repo}/contents/packages/config/locales/{path}?ref={target_branch}', {
 			headers: {
 				Accept: 'application/vnd.github.v3.raw',
 			},
@@ -27,7 +28,7 @@ export async function getFileContent(octokit: Octokit, branch: string, file: str
 		}
 	);
 
-	return JSON.parse(content.data);
+	return yaml.load(content.data)[locale];
 }
 
 // returns an object with flattened keys
