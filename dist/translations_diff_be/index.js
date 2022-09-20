@@ -34,7 +34,7 @@ module.exports =
 /******/ 	// the startup function
 /******/ 	function startup() {
 /******/ 		// Load entry module and return exports
-/******/ 		return __webpack_require__(787);
+/******/ 		return __webpack_require__(364);
 /******/ 	};
 /******/ 	// initialize runtime
 /******/ 	runtime(__webpack_require__);
@@ -5386,6 +5386,242 @@ function authenticationRequestError(state, error, options) {
 /***/ (function(module) {
 
 module.exports = require("assert");
+
+/***/ }),
+
+/***/ 364:
+/***/ (function(__unusedmodule, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+
+// EXTERNAL MODULE: ./node_modules/lodash/lodash.js
+var lodash = __webpack_require__(557);
+var lodash_default = /*#__PURE__*/__webpack_require__.n(lodash);
+
+// CONCATENATED MODULE: ./src/utils/pullRequest.ts
+var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+
+const github = __webpack_require__(469);
+const yaml = __webpack_require__(414);
+function getFiles(octokit, pullNumber) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return yield octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/files?per_page={per_page}', {
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            pull_number: pullNumber,
+            per_page: 100
+        });
+    });
+}
+function getFileContent(octokit, branch, file, locale = 'en') {
+    return __awaiter(this, void 0, void 0, function* () {
+        const content = yield octokit.request('GET /repos/{owner}/{repo}/contents/packages/config/locales/{path}?ref={target_branch}', {
+            headers: {
+                Accept: 'application/vnd.github.v3.raw',
+            },
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            path: `${locale}/${file}`,
+            target_branch: branch
+        });
+        return yaml.load(content.data)[locale];
+    });
+}
+// returns an object with flattened keys
+const objectPaths = (object) => {
+    const result = {};
+    lodash_default().forOwn(object, function (value, key) {
+        if (lodash_default().isPlainObject(value)) {
+            // Recursive step
+            const keys = objectPaths(value);
+            for (const subKey in keys) {
+                const finalKey = key + '.' + subKey;
+                result[finalKey] = keys[subKey];
+            }
+        }
+        else {
+            result[key] = value;
+        }
+    });
+    return result;
+};
+function getPRs(octokit, branch) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return yield octokit.request('GET /repos/{owner}/{repo}/pulls?base={base}', {
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            base: branch
+        });
+    });
+}
+
+// EXTERNAL MODULE: ./node_modules/@octokit/core/dist-node/index.js
+var dist_node = __webpack_require__(448);
+
+// CONCATENATED MODULE: ./src/translations_diff_be/index.ts
+var translations_diff_be_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+
+
+
+const core = __webpack_require__(470);
+const translations_diff_be_github = __webpack_require__(469);
+const allFiles = {};
+function compareKeys(enKeys, otherKeys) {
+    const keyNotPresent = [];
+    for (let element of enKeys) {
+        if (element.includes('.')) {
+            element = element.split('.').slice(-1)[0];
+        }
+        if (otherKeys.includes(element)) {
+            otherKeys.splice(otherKeys.indexOf(element), 1);
+        }
+        else {
+            keyNotPresent.push(element);
+        }
+    }
+    return keyNotPresent;
+}
+function extractKeys(patch) {
+    const regExpPlus = /(?<=\+).*?(?=:)/g;
+    const addedKeys = patch.match(regExpPlus);
+    return addedKeys.map(key => key.trim().replace(/"/g, '')).sort();
+}
+function compareFiles(baseFile, targetFile) {
+    const baseObject = objectPaths(baseFile);
+    const targetObject = objectPaths(targetFile);
+    // if all the keys from base are present in targetObject
+    // compare keys and values
+    const difference = [];
+    for (const key in baseObject) {
+        if (!(key in targetObject)) {
+            difference.push(key);
+        }
+        else if (baseObject[key] !== targetObject[key]) {
+            difference.push(key);
+        }
+    }
+    return difference.sort();
+}
+function validateKeySync(keyDifference, fileName, languages) {
+    const fileNotPresent = [];
+    const keyNotPresent = [];
+    for (const lang of languages) {
+        if (allFiles[lang] === undefined)
+            continue;
+        if (allFiles[lang][fileName] === undefined) {
+            fileNotPresent.push(lang);
+            continue;
+        }
+        const patchedKeys = extractKeys(allFiles[lang][fileName]);
+        const notSynced = compareKeys(keyDifference, patchedKeys);
+        if (notSynced.length !== 0)
+            keyNotPresent.push({ [lang]: notSynced });
+    }
+    return {
+        'fileNotPresent': fileNotPresent,
+        'keyNotPresent': keyNotPresent
+    };
+}
+// returns a file: patch object for lang keys
+/**
+* {
+*  en: {
+*    file_name1: raw_url1,
+*    file_name2: raw_url2
+*  },
+* es: {
+*    file_name1: patch1
+*  }
+* }
+*/
+function transformResponse(response) {
+    const fileRegex = '.*/locales/.*.yml';
+    const filesFromResponse = response.data.filter(elem => new RegExp(fileRegex).test(elem.filename));
+    filesFromResponse.forEach(element => {
+        const path = element.filename.split('/');
+        const lang = path.slice(-2)[0];
+        const filename = path.slice(-1)[0];
+        if (!(lang in allFiles)) {
+            allFiles[lang] = {};
+        }
+        let store = '';
+        if (lang === 'en')
+            store = element.raw_url;
+        else
+            store = element.patch;
+        allFiles[lang][filename] = store;
+    });
+}
+function languageCheck(languages) {
+    const langNotPresent = [];
+    for (const lang of languages) {
+        if (allFiles[lang] === undefined) {
+            langNotPresent.push(lang);
+        }
+    }
+    return langNotPresent;
+}
+function main() {
+    return translations_diff_be_awaiter(this, void 0, void 0, function* () {
+        const inputs = {
+            token: core.getInput('repo-token', { required: true }),
+            base_branch: core.getInput('base-branch'),
+            target_branch: core.getInput('target-branch'),
+            langs: core.getInput('langs')
+        };
+        const pullNumber = translations_diff_be_github.context.payload.pull_request.number;
+        const octokit = new dist_node.Octokit({ auth: inputs.token });
+        const response = getFiles(octokit, pullNumber);
+        transformResponse(response);
+        if (allFiles['en'] === undefined) {
+            console.log('No modified/added keys in english locale');
+            return;
+        }
+        const languages = inputs.langs.split(',').map(elem => elem.trim());
+        let failFlag = false;
+        const langNotPresent = languageCheck(languages);
+        if (langNotPresent.length !== 0) {
+            console.log('Languages not present: ', langNotPresent);
+            failFlag = true;
+        }
+        for (const file in allFiles['en']) {
+            const baseFile = yield getFileContent(octokit, inputs.base_branch, file);
+            const targetFile = yield getFileContent(octokit, inputs.target_branch, file);
+            const keyDifference = compareFiles(baseFile, targetFile);
+            const absent = validateKeySync(keyDifference, file, languages);
+            if (!lodash_default().isEmpty(absent['fileNotPresent'])) {
+                console.log(file + ' not available for following languages: ' + absent['fileNotPresent']);
+                failFlag = true;
+            }
+            if (!lodash_default().isEmpty(absent['keyNotPresent'])) {
+                console.log(file + ' is missing following keys: \n' + JSON.stringify(absent['keyNotPresent']));
+                failFlag = true;
+            }
+        }
+        if (failFlag) {
+            core.setFailed('Translations out of sync!');
+        }
+    });
+}
+main();
+
 
 /***/ }),
 
@@ -31894,241 +32130,6 @@ const getPage = __webpack_require__(265)
 function getFirstPage (octokit, link, headers) {
   return getPage(octokit, link, 'first', headers)
 }
-
-
-/***/ }),
-
-/***/ 787:
-/***/ (function(__unusedmodule, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-
-// EXTERNAL MODULE: ./node_modules/lodash/lodash.js
-var lodash = __webpack_require__(557);
-var lodash_default = /*#__PURE__*/__webpack_require__.n(lodash);
-
-// CONCATENATED MODULE: ./src/utils/pullRequest.ts
-var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-
-const github = __webpack_require__(469);
-const yaml = __webpack_require__(414);
-function getFiles(octokit, pullNumber) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/files?per_page={per_page}', {
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
-            pull_number: pullNumber,
-            per_page: 100
-        });
-    });
-}
-function getFileContent(octokit, branch, file, locale = 'en') {
-    return __awaiter(this, void 0, void 0, function* () {
-        const content = yield octokit.request('GET /repos/{owner}/{repo}/contents/packages/config/locales/{path}?ref={target_branch}', {
-            headers: {
-                Accept: 'application/vnd.github.v3.raw',
-            },
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
-            path: `${locale}/${file}`,
-            target_branch: branch
-        });
-        return yaml.load(content.data)[locale];
-    });
-}
-// returns an object with flattened keys
-const objectPaths = (object) => {
-    const result = {};
-    lodash_default().forOwn(object, function (value, key) {
-        if (lodash_default().isPlainObject(value)) {
-            // Recursive step
-            const keys = objectPaths(value);
-            for (const subKey in keys) {
-                const finalKey = key + '.' + subKey;
-                result[finalKey] = keys[subKey];
-            }
-        }
-        else {
-            result[key] = value;
-        }
-    });
-    return result;
-};
-function getPRs(octokit, branch) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield octokit.request('GET /repos/{owner}/{repo}/pulls?base={base}', {
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
-            base: branch
-        });
-    });
-}
-
-// EXTERNAL MODULE: ./node_modules/@octokit/core/dist-node/index.js
-var dist_node = __webpack_require__(448);
-
-// CONCATENATED MODULE: ./src/translations_diff/index.ts
-var translations_diff_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-
-
-
-const core = __webpack_require__(470);
-const translations_diff_github = __webpack_require__(469);
-const allFiles = {};
-function compareKeys(enKeys, otherKeys) {
-    const keyNotPresent = [];
-    for (let element of enKeys) {
-        if (element.includes('.')) {
-            element = element.split('.').slice(-1)[0];
-        }
-        if (otherKeys.includes(element)) {
-            otherKeys.splice(otherKeys.indexOf(element), 1);
-        }
-        else {
-            keyNotPresent.push(element);
-        }
-    }
-    return keyNotPresent;
-}
-function extractKeys(patch) {
-    const regExpPlus = /(?<=\+).*?(?=:)/g;
-    const addedKeys = patch.match(regExpPlus);
-    return addedKeys.map(key => key.trim().replace(/"/g, '')).sort();
-}
-function compareFiles(baseFile, targetFile) {
-    const baseObject = objectPaths(baseFile);
-    const targetObject = objectPaths(targetFile);
-    // if all the keys from base are present in targetObject
-    // compare keys and values
-    const difference = [];
-    for (const key in baseObject) {
-        if (!(key in targetObject)) {
-            difference.push(key);
-        }
-        else if (baseObject[key] !== targetObject[key]) {
-            difference.push(key);
-        }
-    }
-    return difference.sort();
-}
-function validateKeySync(keyDifference, fileName, languages) {
-    const fileNotPresent = [];
-    const keyNotPresent = [];
-    for (const lang of languages) {
-        if (allFiles[lang] === undefined)
-            continue;
-        if (allFiles[lang][fileName] === undefined) {
-            fileNotPresent.push(lang);
-            continue;
-        }
-        const patchedKeys = extractKeys(allFiles[lang][fileName]);
-        const notSynced = compareKeys(keyDifference, patchedKeys);
-        if (notSynced.length !== 0)
-            keyNotPresent.push({ [lang]: notSynced });
-    }
-    return {
-        'fileNotPresent': fileNotPresent,
-        'keyNotPresent': keyNotPresent
-    };
-}
-// returns a file: patch object for lang keys
-/**
-* {
-*  en: {
-*    file_name1: raw_url1,
-*    file_name2: raw_url2
-*  },
-* es: {
-*    file_name1: patch1
-*  }
-* }
-*/
-function transformResponse(response) {
-    const filesFromResponse = response.data.filter(elem => new RegExp('.*/locales/.*.json').test(elem.filename));
-    filesFromResponse.forEach(element => {
-        const path = element.filename.split('/');
-        const lang = path.slice(-2)[0];
-        const filename = path.slice(-1)[0];
-        if (!(lang in allFiles)) {
-            allFiles[lang] = {};
-        }
-        let store = '';
-        if (lang === 'en')
-            store = element.raw_url;
-        else
-            store = element.patch;
-        allFiles[lang][filename] = store;
-    });
-}
-function languageCheck(languages) {
-    const langNotPresent = [];
-    for (const lang of languages) {
-        if (allFiles[lang] === undefined) {
-            langNotPresent.push(lang);
-        }
-    }
-    return langNotPresent;
-}
-function main() {
-    return translations_diff_awaiter(this, void 0, void 0, function* () {
-        const inputs = {
-            token: core.getInput('repo-token', { required: true }),
-            base_branch: core.getInput('base-branch'),
-            target_branch: core.getInput('target-branch'),
-            langs: core.getInput('langs')
-        };
-        const pullNumber = translations_diff_github.context.payload.pull_request.number;
-        const octokit = new dist_node.Octokit({ auth: inputs.token });
-        const response = getFiles(octokit, pullNumber);
-        transformResponse(response);
-        if (allFiles['en'] === undefined) {
-            console.log('No modified/added keys in english locale');
-            return;
-        }
-        const languages = inputs.langs.split(',').map(elem => elem.trim());
-        let failFlag = false;
-        const langNotPresent = languageCheck(languages);
-        if (langNotPresent.length !== 0) {
-            console.log('Languages not present: ', langNotPresent);
-            failFlag = true;
-        }
-        for (const file in allFiles['en']) {
-            const baseFile = yield getFileContent(octokit, inputs.base_branch, file);
-            const targetFile = yield getFileContent(octokit, inputs.target_branch, file);
-            const keyDifference = compareFiles(baseFile, targetFile);
-            const absent = validateKeySync(keyDifference, file, languages);
-            if (!lodash_default().isEmpty(absent['fileNotPresent'])) {
-                console.log(file + ' not available for following languages: ' + absent['fileNotPresent']);
-                failFlag = true;
-            }
-            if (!lodash_default().isEmpty(absent['keyNotPresent'])) {
-                console.log(file + ' is missing following keys: \n' + JSON.stringify(absent['keyNotPresent']));
-                failFlag = true;
-            }
-        }
-        if (failFlag) {
-            core.setFailed('Translations out of sync!');
-        }
-    });
-}
-main();
 
 
 /***/ }),
